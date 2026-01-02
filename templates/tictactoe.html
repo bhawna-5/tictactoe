@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TicTacToe - AlphaZero</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 10px;
+            margin: 30px auto;
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 1;
+        }
+
+        .cell {
+            background: #f0f0f0;
+            border: 3px solid #ddd;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 4em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+
+        .cell:hover:not(.disabled) {
+            background: #e0e0e0;
+            transform: scale(1.05);
+            border-color: #667eea;
+        }
+
+        .cell.disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .cell.x {
+            color: #e74c3c;
+        }
+
+        .cell.o {
+            color: #3498db;
+        }
+
+        .controls {
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2em;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 1.3em;
+            font-weight: bold;
+            min-height: 30px;
+        }
+
+        .status.win {
+            color: #27ae60;
+        }
+
+        .status.lose {
+            color: #e74c3c;
+        }
+
+        .status.draw {
+            color: #f39c12;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            margin: 10px 0;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .cell.ai-thinking {
+            animation: pulse 1s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 TicTacToe</h1>
+        <p class="subtitle">Play against AI</p>
+        
+        <div class="status" id="status">You are X, AI is O</div>
+        
+        <div class="game-board" id="board"></div>
+        
+        <div class="loading" id="loading" style="display: none;">AI is thinking...</div>
+        
+        <div class="controls">
+            <button onclick="newGame()">New Game</button>
+        </div>
+    </div>
+
+    <script>
+        let gameId = null;
+        let board = null;
+        let gameEnded = false;
+
+        // Initialize game on page load
+        window.onload = function() {
+            newGame();
+        };
+
+        async function newGame() {
+            try {
+                const response = await fetch('/new_game', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                const data = await response.json();
+                gameId = data.game_id;
+                board = data.board;
+                gameEnded = false;
+                updateStatus('You are X, AI is O');
+                renderBoard();
+            } catch (error) {
+                console.error('Error starting new game:', error);
+                updateStatus('Error starting game. Please try again.');
+            }
+        }
+
+        function renderBoard() {
+            const boardElement = document.getElementById('board');
+            boardElement.innerHTML = '';
+            
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    
+                    const value = board[row][col];
+                    if (value === 1) {
+                        cell.textContent = 'X';
+                        cell.classList.add('x');
+                        cell.classList.add('disabled');
+                    } else if (value === -1) {
+                        cell.textContent = 'O';
+                        cell.classList.add('o');
+                        cell.classList.add('disabled');
+                    }
+                    
+                    if (!gameEnded && value === 0) {
+                        cell.addEventListener('click', () => makeMove(row, col));
+                    } else {
+                        cell.classList.add('disabled');
+                    }
+                    
+                    boardElement.appendChild(cell);
+                }
+            }
+        }
+
+        async function makeMove(row, col) {
+            if (gameEnded) return;
+            
+            // Disable all cells while processing
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => cell.classList.add('disabled'));
+            
+            try {
+                const response = await fetch('/make_move', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        game_id: gameId,
+                        row: row,
+                        col: col
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    updateStatus(data.error);
+                    renderBoard();
+                    return;
+                }
+                
+                board = data.board;
+                gameEnded = data.game_ended;
+                
+                if (gameEnded) {
+                    if (data.result === 1) {
+                        updateStatus('🎉 You Win!', 'win');
+                    } else if (data.result === -1) {
+                        updateStatus('😔 AI Wins!', 'lose');
+                    } else {
+                        updateStatus('🤝 Draw!', 'draw');
+                    }
+                } else {
+                    updateStatus('AI is thinking...');
+                    document.getElementById('loading').style.display = 'block';
+                    
+                    // Small delay to show AI thinking
+                    setTimeout(() => {
+                        renderBoard();
+                        document.getElementById('loading').style.display = 'none';
+                        if (!gameEnded) {
+                            updateStatus('Your turn!');
+                        }
+                    }, 500);
+                }
+                
+                renderBoard();
+                
+            } catch (error) {
+                console.error('Error making move:', error);
+                updateStatus('Error making move. Please try again.');
+                renderBoard();
+            }
+        }
+
+        function updateStatus(message, className = '') {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.className = 'status ' + className;
+        }
+    </script>
+</body>
+</html>
+

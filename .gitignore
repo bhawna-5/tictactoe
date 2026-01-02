@@ -1,0 +1,14 @@
+*.pyc
+.DS_Store
+.venv/
+/temp/
+/.project
+/.pydevproject
+venv/
+# checkpoint
+checkpoints/
+
+# For PyCharm users
+.idea/
+.ipynb_checkpoints/
+ tictactoe_3d/keras/.ipynb_checkpoints/
